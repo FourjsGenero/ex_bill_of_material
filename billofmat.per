@@ -1,0 +1,128 @@
+ACTION DEFAULTS
+   ACTION parts_append        ( TEXT="Append", IMAGE="listadd" )
+   ACTION parts_delete        ( TEXT="Delete", IMAGE="listdel" )
+   ACTION parts_modify        ( TEXT="Modify", IMAGE="pen" )
+   ACTION tree_delete         ( TEXT="Delete", IMAGE="treedel1", COMMENT="Delete current node" )
+   ACTION tree_append_child   ( TEXT="New child", IMAGE="treeadd2", COMMENT="Insert new child (makes a parent from current node)" )
+   ACTION tree_insert_sibling ( TEXT="Insert sibling", IMAGE="treeins1", COMMENT="Insert new sibling (before current child)" )
+   ACTION tree_clear          ( TEXT="Delete all", IMAGE="treeclear", COMMENT="Delete all nodes" )
+   ACTION tree_mup            ( TEXT="Move up", IMAGE="treeup", COMMENT="Move current node up" )
+   ACTION tree_mdown          ( TEXT="Move down", IMAGE="treedown", COMMENT="Move current node down" )
+   ACTION tree_qincr          ( TEXT="Incr quant", IMAGE="treeplus", COMMENT="Increment quatity by one" )
+   ACTION tree_qdecr          ( TEXT="Decr quant", IMAGE="treeminus", COMMENT="Decrement quatity by one" )
+   ACTION tree_expall         ( TEXT="Expand all", IMAGE="treeexp1", COMMENT="Expand whole node" )
+   ACTION tree_colall         ( TEXT="Collapse all", IMAGE="treecol1", COMMENT="Collapse whole node" )
+END
+
+TOPMENU
+   GROUP file (TEXT="File")
+      COMMAND search (TEXT="Search")
+      SEPARATOR
+      COMMAND close (TEXT="Quit")
+   END
+   GROUP edit (TEXT="Edit BOM")
+      COMMAND tree_delete
+      COMMAND tree_append_child
+      COMMAND tree_insert_sibling
+      COMMAND tree_mup
+      COMMAND tree_mdown
+      SEPARATOR
+      COMMAND tree_qincr
+      COMMAND tree_qdecr
+   END
+   GROUP edit (TEXT="Edit Parts")
+      COMMAND parts_append
+      COMMAND parts_delete
+      COMMAND parts_modify
+   END
+   GROUP help (TEXT="Help")
+      COMMAND about (TEXT="About")
+   END
+END
+
+LAYOUT (WINDOWSTYLE="main2")
+VBOX (SPLITTER)
+GRID
+{
+<g     ><Tree tv                                                                           >
+         Bill of material                        Desc  Num  Pos Material  Quantity  Price
+ [b11 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b12 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b13 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b14 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b15 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b16 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b17 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b18 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b19 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+ [b20 ] [name                                   |desc |num |pos|mat      |quant    |price  ]
+<      ><                                                                                  >
+}
+END
+GRID
+{
+<Table tb                                                                          ><g     >
+ Code        Name                Description                   Material    Price
+[pcode      |pname              |pdesc                        |pmate      |puprc   ] [b21 ]
+[pcode      |pname              |pdesc                        |pmate      |puprc   ] [b22 ]
+[pcode      |pname              |pdesc                        |pmate      |puprc   ] [b23 ]
+[pcode      |pname              |pdesc                        |pmate      |puprc   ]
+[pcode      |pname              |pdesc                        |pmate      |puprc   ]
+<                                                                                  ><      >
+<g                                                                                         >
+ Filter: [cb1                ] [cb2                ]
+<                                                                                          >
+}
+END
+END
+END
+
+ATTRIBUTES
+TREE tv : mybom, UNSORTABLECOLUMNS,
+     PARENTIDCOLUMN=parentid, IDCOLUMN=id,
+     EXPANDEDCOLUMN=expanded,
+     DOUBLECLICK=show_part;
+EDIT name = FORMONLY.name, IMAGECOLUMN=image;
+PHANTOM FORMONLY.image;
+PHANTOM FORMONLY.parentid;
+PHANTOM FORMONLY.id;
+PHANTOM FORMONLY.expanded;
+EDIT num   = FORMONLY.linknum, HIDDEN=USER;
+EDIT pos   = FORMONLY.linkpos, HIDDEN=USER;
+EDIT desc  = FORMONLY.description, SCROLL, HIDDEN=USER;
+EDIT mat   = FORMONLY.material, SCROLL, HIDDEN=USER;
+EDIT quant = FORMONLY.quantity, SCROLL;
+PHANTOM FORMONLY.unitprice;
+EDIT price = FORMONLY.price;
+
+BUTTON b11: tree_delete;
+BUTTON b12: tree_append_child;
+BUTTON b13: tree_insert_sibling;
+BUTTON b14: tree_clear;
+BUTTON b15: tree_mup;
+BUTTON b16: tree_mdown;
+BUTTON b17: tree_qincr;
+BUTTON b18: tree_qdecr;
+BUTTON b19: tree_expall;
+BUTTON b20: tree_colall;
+
+EDIT pcode = FORMONLY.bompart_code;
+EDIT pname = FORMONLY.bompart_name;
+EDIT pdesc = FORMONLY.bompart_description;
+EDIT pmate = FORMONLY.bompart_material;
+EDIT puprc = FORMONLY.bompart_unitprice;
+
+BUTTON b21: parts_append;
+BUTTON b22: parts_delete;
+BUTTON b23: parts_modify;
+
+COMBOBOX cb1 = FORMONLY.part_filter, NOT NULL,
+               ITEMS = (("A","All"),("M","Manufactured only"),("C","Components only"));
+CHECKBOX cb2 = FORMONLY.follow_tree, TEXT = "Follow tree", NOT NULL;
+
+END
+
+INSTRUCTIONS
+SCREEN RECORD tvsr( FORMONLY.name THRU FORMONLY.price );
+SCREEN RECORD mlsr( FORMONLY.bompart_code THRU FORMONLY.bompart_unitprice );
+END
