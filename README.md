@@ -5,6 +5,8 @@
 This sample shows how to implement a bill of material in Genero, using
 a treeview container to show the structure of items.
 
+![Genero Contacts app (Android)](https://github.com/FourjsGenero/ex_bill_of_material/raw/master/docs/billofmat-screen-001.png)
+
 ## Prerequisites
 
 * Genero BDL 3.00+
