@@ -9,8 +9,8 @@ a treeview container to show the structure of items.
 
 ## Prerequisites
 
-* Genero BDL 3.00+
-* Genero Desktop Client 3.00+
+* Genero BDL 3.10+
+* Genero Desktop Client 3.10+
 * GNU Make
 
 ## Compilation from command line
