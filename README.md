@@ -11,6 +11,7 @@ a treeview container to show the structure of items.
 
 * Genero BDL 3.10+
 * Genero Desktop Client 3.10+
+* Genero Studio 3.10+
 * GNU Make
 
 ## Compilation from command line
