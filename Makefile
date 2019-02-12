@@ -4,6 +4,9 @@ PROGMOD=billofmat.42m
 
 all: $(PROGMOD) $(FORMS)
 
+run: all
+	fglrun billofmat
+
 %.42f: %.per
 	fglform -M $<
 
