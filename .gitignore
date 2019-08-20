@@ -1,4 +1,5 @@
 *.42?
 bin
-billofmat.4pwdb
-billofmat.4pwvs
+*.4pwdb
+*.4pwvs
+*.4pwcfg

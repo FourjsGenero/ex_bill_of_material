@@ -722,7 +722,8 @@ FUNCTION bom_build()
               CALL DIALOG.setCurrentRow("mlsr", x)
            END IF
  
-        ON KEY(CONTROL-Z) CALL bom_debug()
+        ON ACTION bom_debug ATTRIBUTES(DEFAULTVIEW=NO, ACCELERATOR="CONTROL-Z")
+           CALL bom_debug()
 
         ON ACTION close
            ACCEPT DIALOG
