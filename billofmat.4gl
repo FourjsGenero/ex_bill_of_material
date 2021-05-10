@@ -734,6 +734,10 @@ END FUNCTION
 
 FUNCTION add_constraint(tabname, conname, conbody)
     DEFINE tabname, conname, conbody STRING
+    IF fgl_db_driver_type() == "sqt" THEN
+       DISPLAY SFMT("%1/%2: No table constaints with SQLite...",tabname,conname)
+       RETURN TRUE
+    END IF
     WHENEVER ERROR CONTINUE
     EXECUTE IMMEDIATE "ALTER TABLE "||tabname||" ADD CONSTRAINT "||conname||" "||conbody
     IF SQLCA.SQLCODE != 0 THEN -- Try the Informix syntax
