@@ -82,7 +82,7 @@ MAIN
 
     WHENEVER ERROR CONTINUE
     SELECT DISTINCT USER INTO curr_user FROM bomopts
-    IF SQLCA.SQLCODE != 0 THEN
+    IF sqlca.sqlcode != 0 THEN
        LET curr_user = fgl_getenv("LOGNAME")
        IF curr_user IS NULL THEN
           LET curr_user = fgl_getenv("USERNAME")
@@ -92,7 +92,7 @@ MAIN
 
     SELECT bomopts_ft, bomopts_pf, bomopts_lr INTO options.*
       FROM bomopts WHERE bomopts_user = curr_user
-    IF SQLCA.SQLCODE == NOTFOUND THEN
+    IF sqlca.sqlcode == NOTFOUND THEN
        LET options.follow_tree = FALSE
        LET options.part_filter = "A"
        LET options.last_row = NULL
@@ -159,7 +159,7 @@ FUNCTION bom_fill_tree(parentid)
 
     LET tot = 0.0
     FOR i = 1 TO n
-        LET j = bomlist.getlength() + 1
+        LET j = bomlist.getLength() + 1
         LET bomlist[j].name        = "["||arr[i].bompart_code||"] "||arr[i].bompart_name
         LET bomlist[j].image       = leaf_image
         LET bomlist[j].pid         = parentid
@@ -386,6 +386,7 @@ END FUNCTION
 FUNCTION bom_can_insert_part(d, c, pr)
     DEFINE d ui.Dialog
     DEFINE c, pr, i INT
+    LET d = NULL
     IF pr <= 0 THEN RETURN FALSE END IF
     IF c < 0 THEN RETURN FALSE END IF
     IF partlist[pr].bompart_material == "Type" THEN
@@ -530,6 +531,7 @@ END FUNCTION
 FUNCTION bom_tree_can_up(d, c)
     DEFINE d ui.Dialog
     DEFINE c INT
+    LET d = NULL
     IF bom_tree_is_parent(c) THEN RETURN FALSE END IF
     IF c <= 2 THEN RETURN FALSE END IF
     IF bomlist[c-1].pid != bomlist[c].pid THEN RETURN FALSE END IF
@@ -618,6 +620,7 @@ FUNCTION bom_tree_quantity_add(d, c, v)
     DEFINE d ui.Dialog
     DEFINE c INT
     DEFINE v DECIMAL(20,4)
+    LET d = NULL
     UPDATE bomlink SET bomlink_quantity = bomlist[c].quantity + v
      WHERE bomlink_num = bomlist[c].linknum
     LET bomlist[c].quantity = bomlist[c].quantity + v
@@ -628,6 +631,7 @@ END FUNCTION
 FUNCTION bom_tree_expcolall(d, c, v)
     DEFINE d ui.Dialog
     DEFINE c, v, i INT
+    LET d = NULL
     FOR i=c TO bomlist.getLength()
         IF i!=c AND bomlist[i].pid == bomlist[c].pid THEN EXIT FOR END IF
         LET bomlist[i].expanded = v
@@ -740,11 +744,11 @@ FUNCTION add_constraint(tabname, conname, conbody)
     END IF
     WHENEVER ERROR CONTINUE
     EXECUTE IMMEDIATE "ALTER TABLE "||tabname||" ADD CONSTRAINT "||conname||" "||conbody
-    IF SQLCA.SQLCODE != 0 THEN -- Try the Informix syntax
+    IF sqlca.sqlcode != 0 THEN -- Try the Informix syntax
        EXECUTE IMMEDIATE "ALTER TABLE "||tabname||" ADD CONSTRAINT "||conbody||" CONSTRAINT "||conname
     END IF
     WHENEVER ERROR STOP
-    RETURN (SQLCA.SQLCODE == 0)
+    RETURN (sqlca.sqlcode == 0)
 END FUNCTION
 
 FUNCTION bomlink_new_id()
