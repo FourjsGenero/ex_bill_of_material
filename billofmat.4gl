@@ -26,8 +26,8 @@ TYPE t_bompl RECORD
      END RECORD
 
 TYPE t_bomtree RECORD
-       name                STRING,
-       image               STRING,
+       ndname              STRING,
+       ndicon              STRING,
        pid                 VARCHAR(50),
        id                  VARCHAR(50),
        expanded            BOOLEAN,
@@ -41,8 +41,8 @@ TYPE t_bomtree RECORD
      END RECORD
 
 TYPE t_colors RECORD
-       name                STRING,
-       image               STRING,
+       cname               STRING,
+       ndicon              STRING,
        pid                 STRING,
        id                  STRING,
        expanded            STRING,
@@ -61,7 +61,7 @@ DEFINE bomlist DYNAMIC ARRAY OF t_bomtree
 
 DEFINE partlist DYNAMIC ARRAY OF t_bompart
 
-DEFINE options RECORD
+DEFINE opts RECORD
        follow_tree SMALLINT,
        part_filter CHAR(1),
        last_row INTEGER
@@ -70,7 +70,7 @@ DEFINE options RECORD
 DEFINE curr_user VARCHAR(50)
 
 MAIN
-    DEFINE first BOOLEAN
+    DEFINE init BOOLEAN
 
     OPTIONS INPUT WRAP
 
@@ -90,40 +90,39 @@ MAIN
     END IF
     WHENEVER ERROR STOP
 
-    SELECT bomopts_ft, bomopts_pf, bomopts_lr INTO options.*
+    SELECT bomopts_ft, bomopts_pf, bomopts_lr INTO opts.*
       FROM bomopts WHERE bomopts_user = curr_user
     IF sqlca.sqlcode == NOTFOUND THEN
-       LET options.follow_tree = FALSE
-       LET options.part_filter = "A"
-       LET options.last_row = NULL
-       LET first = TRUE
+       LET opts.follow_tree = FALSE
+       LET opts.part_filter = "A"
+       LET opts.last_row = NULL
+       LET init = TRUE
     END IF
 
-    CALL bom_fill_parts(options.part_filter)
+    CALL bom_fill_parts(opts.part_filter)
     CALL bom_fill_tree(root_name)
     CALL bom_tree_all_totals()
     CALL bom_build()
     CALL bom_sync_expanded()
 
-    IF first THEN
+    IF init THEN
        INSERT INTO bomopts VALUES (
                    curr_user,
-                   options.follow_tree,
-                   options.part_filter,
-                   options.last_row
+                   opts.follow_tree,
+                   opts.part_filter,
+                   opts.last_row
               )
     ELSE
        UPDATE bomopts SET
-              bomopts_ft = options.follow_tree,
-              bomopts_pf = options.part_filter,
-              bomopts_lr = options.last_row
+              bomopts_ft = opts.follow_tree,
+              bomopts_pf = opts.part_filter,
+              bomopts_lr = opts.last_row
         WHERE bomopts_user = curr_user
     END IF
 
 END MAIN
 
-FUNCTION bom_fill_tree(parentid)
-    DEFINE parentid VARCHAR(50)
+FUNCTION bom_fill_tree(parentid VARCHAR(50)) RETURNS ()
     DEFINE arr DYNAMIC ARRAY OF t_bompl
     DEFINE rec t_bompl
     DEFINE i, j, n, x INT
@@ -148,20 +147,20 @@ FUNCTION bom_fill_tree(parentid)
        CALL bomlist.clear()
     END IF
     LET x = bomlist.getLength()
-    IF n > 0 AND x > 0 THEN 
+    IF n > 0 AND x > 0 THEN
        IF x == 1 THEN
-          LET bomlist[x].image = root_image
+          LET bomlist[x].ndicon = root_image
           LET bomlist[x].expanded = TRUE
        ELSE
-          LET bomlist[x].image = node_image
+          LET bomlist[x].ndicon = node_image
        END IF
     END IF
 
     LET tot = 0.0
     FOR i = 1 TO n
         LET j = bomlist.getLength() + 1
-        LET bomlist[j].name        = "["||arr[i].bompart_code||"] "||arr[i].bompart_name
-        LET bomlist[j].image       = leaf_image
+        LET bomlist[j].ndname      = "["||arr[i].bompart_code||"] "||arr[i].bompart_name
+        LET bomlist[j].ndicon      = leaf_image
         LET bomlist[j].pid         = parentid
         LET bomlist[j].id          = arr[i].bompart_code
         LET bomlist[j].linknum     = arr[i].bomlink_num
@@ -179,7 +178,7 @@ FUNCTION bom_fill_tree(parentid)
 
 END FUNCTION
 
-FUNCTION bom_tree_all_totals()
+FUNCTION bom_tree_all_totals() RETURNS ()
     DEFINE i INT
     IF bomlist.getLength()==0 THEN RETURN END IF
     FOR i = 1 TO bomlist.getLength()
@@ -189,24 +188,23 @@ FUNCTION bom_tree_all_totals()
     END FOR
 END FUNCTION
 
-FUNCTION bom_fill_parts(filter)
-    DEFINE filter STRING
+FUNCTION bom_fill_parts(filter STRING) RETURNS ()
     DEFINE rec t_bompart
     DEFINE i INT
-    DEFINE sql STRING
+    DEFINE sqlcmd STRING
 
-    CASE options.part_filter
+    CASE opts.part_filter
          WHEN "A" LET filter = NULL
          WHEN "M" LET filter = "bompart_material != 'Type'"
          WHEN "C" LET filter = "bompart_material = 'Type'"
     END CASE
 
-    LET sql = "SELECT p.* FROM bompart p WHERE bompart_code != 'root'"
+    LET sqlcmd = "SELECT p.* FROM bompart p WHERE bompart_code != 'root'"
     IF filter IS NOT NULL THEN
-       LET sql = sql || " AND " || filter
+       LET sqlcmd = sqlcmd || " AND " || filter
     END IF
-    LET sql = sql || " ORDER BY p.bompart_name"
-    DECLARE cu2 CURSOR FROM sql
+    LET sqlcmd = sqlcmd || " ORDER BY p.bompart_name"
+    DECLARE cu2 CURSOR FROM sqlcmd
 
     CALL partlist.clear()
     LET i = 1
@@ -217,8 +215,7 @@ FUNCTION bom_fill_parts(filter)
 
 END FUNCTION
 
-FUNCTION bom_parts_lookup(code)
-    DEFINE code STRING
+FUNCTION bom_parts_lookup(code STRING) RETURNS INTEGER
     DEFINE i INT
     FOR i=1 TO partlist.getLength()
         IF partlist[i].bompart_code = code THEN RETURN i END IF
@@ -226,13 +223,12 @@ FUNCTION bom_parts_lookup(code)
     RETURN 0
 END FUNCTION
 
-FUNCTION bom_dialog_setup(d)
-    DEFINE d ui.Dialog
+FUNCTION bom_dialog_setup(d ui.Dialog) RETURNS ()
     DEFINE n, c, x INT
 
     LET n = d.getArrayLength("tvsr")
     LET c = d.getCurrentRow("tvsr")
-    IF options.follow_tree AND n > 0 THEN
+    IF opts.follow_tree AND n > 0 THEN
        LET x = bom_parts_lookup(bomlist[c].id)
        IF x > 0 THEN
           CALL d.setCurrentRow("mlsr", x)
@@ -264,16 +260,13 @@ FUNCTION bom_dialog_setup(d)
 
 END FUNCTION
 
-FUNCTION bom_tree_is_parent(c)
-    DEFINE c INT
+FUNCTION bom_tree_is_parent(c INTEGER) RETURNS BOOLEAN
     IF c <= 0 THEN RETURN FALSE END IF
     IF c == bomlist.getLength() THEN RETURN FALSE END IF
     RETURN ( bomlist[c+1].pid == bomlist[c].id )
 END FUNCTION
 
-FUNCTION bom_can_delete(d, c)
-    DEFINE d ui.Dialog
-    DEFINE c INT
+FUNCTION bom_can_delete(d ui.Dialog, c INT) RETURNS BOOLEAN
     IF c == -1 THEN
        LET c = d.getCurrentRow("tvsr")
     END IF
@@ -281,11 +274,9 @@ FUNCTION bom_can_delete(d, c)
     RETURN NOT bom_tree_is_parent(c)
 END FUNCTION
 
-FUNCTION bom_init_node(c, pr, pid, num, pos)
-    DEFINE c, pr, num, pos INT
-    DEFINE pid STRING
-    LET bomlist[c].name        = "["||partlist[pr].bompart_code||"] "||partlist[pr].bompart_name
-    LET bomlist[c].image       = leaf_image
+FUNCTION bom_init_node(c INT, pr INT, pid STRING, num INT, pos INT) RETURNS ()
+    LET bomlist[c].ndname      = "["||partlist[pr].bompart_code||"] "||partlist[pr].bompart_name
+    LET bomlist[c].ndicon      = leaf_image
     LET bomlist[c].pid         = pid
     LET bomlist[c].id          = partlist[pr].bompart_code
     LET bomlist[c].linknum     = num
@@ -303,8 +294,8 @@ FUNCTION bom_init_node(c, pr, pid, num, pos)
     LET bomlist_colors[c].price    = "lightyellow reverse"
 END FUNCTION
 
-FUNCTION bom_positions_update(c, v)
-    DEFINE c, v, i, s, e INT
+FUNCTION bom_positions_update(c INT, v INT) RETURNS ()
+    DEFINE i, s, e INT
     DEFINE arr DYNAMIC ARRAY OF INTEGER
     FOR i=c TO bomlist.getLength()
         IF bomlist[i].pid == bomlist[c].pid THEN
@@ -326,8 +317,7 @@ FUNCTION bom_positions_update(c, v)
     END FOR
 END FUNCTION
 
-FUNCTION bom_can_append_child(d)
-    DEFINE d ui.Dialog
+FUNCTION bom_can_append_child(d ui.Dialog) RETURNS BOOLEAN
     DEFINE c, pr, i INT
     LET pr = d.getCurrentRow("mlsr")
     LET c = d.getCurrentRow("tvsr")
@@ -340,8 +330,8 @@ FUNCTION bom_can_append_child(d)
     RETURN TRUE
 END FUNCTION
 
-FUNCTION bom_count_children(p)
-    DEFINE p, i, c INT
+FUNCTION bom_count_children(p INT) RETURNS INT
+    DEFINE i, c INT
     LET c = 0
     FOR i=p+1 TO bomlist.getLength()
         IF bomlist[i].pid == bomlist[p].id THEN LET c=c+1 END IF
@@ -349,12 +339,11 @@ FUNCTION bom_count_children(p)
     RETURN c
 END FUNCTION
 
-FUNCTION bom_append_child(d, pr)
-    DEFINE d ui.Dialog
-    DEFINE pr, p, c, x INT
+FUNCTION bom_append_child(d ui.Dialog, pr INT) RETURNS BOOLEAN
+    DEFINE p, c, x INT
     LET p = d.getCurrentRow("tvsr")
     LET x = bom_count_children(p)
-    LET bomlist[p].image     = node_image
+    LET bomlist[p].ndicon    = node_image
     LET bomlist[p].expanded  = TRUE
     LET c = d.appendNode("tvsr", p)
     CALL bom_init_node(c, pr, bomlist[c].pid, 0, x+1)
@@ -373,8 +362,8 @@ FUNCTION bom_append_child(d, pr)
     RETURN TRUE
 END FUNCTION
 
-FUNCTION bom_tree_parent_index(c)
-    DEFINE c,i INT
+FUNCTION bom_tree_parent_index(c INT) RETURNS INT
+    DEFINE i INT
     DEFINE pid STRING
     LET pid = bomlist[c].pid
     FOR i=c TO 1 STEP -1
@@ -383,9 +372,8 @@ FUNCTION bom_tree_parent_index(c)
     RETURN 0
 END FUNCTION
 
-FUNCTION bom_can_insert_part(d, c, pr)
-    DEFINE d ui.Dialog
-    DEFINE c, pr, i INT
+FUNCTION bom_can_insert_part(d ui.Dialog, c INT, pr INT) RETURNS BOOLEAN
+    DEFINE i INT
     LET d = NULL
     IF pr <= 0 THEN RETURN FALSE END IF
     IF c < 0 THEN RETURN FALSE END IF
@@ -397,8 +385,7 @@ FUNCTION bom_can_insert_part(d, c, pr)
     RETURN TRUE
 END FUNCTION
 
-FUNCTION bom_can_insert_sibling(d)
-    DEFINE d ui.Dialog
+FUNCTION bom_can_insert_sibling(d ui.Dialog) RETURNS BOOLEAN
     DEFINE c, pr, i, x INT
     LET pr = d.getCurrentRow("mlsr")
     LET c = d.getCurrentRow("tvsr")
@@ -418,9 +405,8 @@ FUNCTION bom_can_insert_sibling(d)
     RETURN TRUE
 END FUNCTION
 
-FUNCTION bom_insert_sibling(d, pr)
-    DEFINE d ui.Dialog
-    DEFINE pr, c, x INT
+FUNCTION bom_insert_sibling(d ui.Dialog, pr INT) RETURNS BOOLEAN
+    DEFINE c, x INT
     LET c = d.getCurrentRow("tvsr")
     LET x = bom_tree_check_loop(partlist[pr].bompart_code, c)
     IF x > 0 THEN
@@ -453,7 +439,7 @@ FUNCTION bom_insert_sibling(d, pr)
     RETURN TRUE
 END FUNCTION
 
-FUNCTION bom_debug()
+FUNCTION bom_debug() RETURNS ()
     DEFINE i INT
     DISPLAY "------------------------------------------------------------"
     FOR i=1 TO bomlist.getLength()
@@ -461,8 +447,7 @@ FUNCTION bom_debug()
     END FOR
 END FUNCTION
 
-FUNCTION bom_tree_delete(d)
-    DEFINE d ui.Dialog
+FUNCTION bom_tree_delete(d ui.Dialog) RETURNS ()
     DEFINE c, x, p INT
     DEFINE pid STRING
     LET c = d.getCurrentRow("tvsr")
@@ -474,7 +459,7 @@ FUNCTION bom_tree_delete(d)
        LET p = c-1
        IF bomlist[p].id = pid THEN
           IF NOT bom_tree_is_parent(p) THEN
-             LET bomlist[p].image = leaf_image
+             LET bomlist[p].ndicon = leaf_image
              LET bomlist[p].price = NULL
           END IF
           LET x = bom_tree_root(c)
@@ -486,8 +471,7 @@ FUNCTION bom_tree_delete(d)
     END IF
 END FUNCTION
 
-FUNCTION bom_tree_check_loop(id_to_check, c)
-    DEFINE id_to_check STRING, c INT
+FUNCTION bom_tree_check_loop(id_to_check STRING, c INT) RETURNS INT
     DEFINE i, x INT
     IF c == 0 THEN RETURN 0 END IF
     LET i = c-1
@@ -504,8 +488,8 @@ FUNCTION bom_tree_check_loop(id_to_check, c)
     RETURN 0
 END FUNCTION
 
-FUNCTION bom_tree_root(c)
-    DEFINE c, i INTEGER
+FUNCTION bom_tree_root(c INT) RETURNS INT
+    DEFINE i INTEGER
     IF c == 0 OR c>bomlist.getLength() THEN RETURN 0 END IF
     LET i = c-1
     WHILE i>=1
@@ -519,8 +503,7 @@ FUNCTION bom_tree_root(c)
     RETURN bom_tree_root(i)
 END FUNCTION
 
-FUNCTION bom_tree_clear(d)
-    DEFINE d ui.Dialog
+FUNCTION bom_tree_clear(d ui.Dialog) RETURNS ()
     IF NOT __mbox_yn("Clear",
            "Are you sure you want to delete all nodes of the structure?",
            "exclamation") THEN RETURN END IF
@@ -528,9 +511,7 @@ FUNCTION bom_tree_clear(d)
     CALL d.deleteAllRows("tvsr")
 END FUNCTION
 
-FUNCTION bom_tree_can_up(d, c)
-    DEFINE d ui.Dialog
-    DEFINE c INT
+FUNCTION bom_tree_can_up(d ui.Dialog, c INT) RETURNS BOOLEAN
     LET d = NULL
     IF bom_tree_is_parent(c) THEN RETURN FALSE END IF
     IF c <= 2 THEN RETURN FALSE END IF
@@ -539,9 +520,8 @@ FUNCTION bom_tree_can_up(d, c)
     RETURN TRUE
 END FUNCTION
 
-FUNCTION bom_tree_up(d, c)
-    DEFINE d ui.Dialog
-    DEFINE c, x INT
+FUNCTION bom_tree_up(d ui.Dialog, c INT) RETURNS ()
+    DEFINE x INT
     BEGIN WORK
     LET x = bomlist[c].linkpos
     UPDATE bomlink SET bomlink_position = -1  WHERE bomlink_num = bomlist[c-1].linknum
@@ -561,9 +541,7 @@ FUNCTION bom_tree_up(d, c)
     CALL d.setCurrentRow("tvsr", c-1)
 END FUNCTION
 
-FUNCTION bom_tree_can_down(d, c)
-    DEFINE d ui.Dialog
-    DEFINE c INT
+FUNCTION bom_tree_can_down(d ui.Dialog, c INT) RETURNS BOOLEAN
     IF c == 0 THEN RETURN FALSE END IF
     IF bom_tree_is_parent(c) THEN RETURN FALSE END IF
     IF c == d.getArrayLength("tvsr") THEN RETURN FALSE END IF
@@ -572,9 +550,8 @@ FUNCTION bom_tree_can_down(d, c)
     RETURN TRUE
 END FUNCTION
 
-FUNCTION bom_tree_down(d, c)
-    DEFINE d ui.Dialog
-    DEFINE c, x INT
+FUNCTION bom_tree_down(d ui.Dialog, c INT) RETURNS ()
+    DEFINE x INT
     BEGIN WORK
     LET x = bomlist[c].linkpos
     UPDATE bomlink SET bomlink_position = -1  WHERE bomlink_num = bomlist[c+1].linknum
@@ -595,8 +572,8 @@ FUNCTION bom_tree_down(d, c)
     CALL d.setCurrentRow("tvsr", c+1)
 END FUNCTION
 
-FUNCTION bom_tree_parent_total(c)
-    DEFINE c, i INT
+FUNCTION bom_tree_parent_total(c INT) RETURNS ()
+    DEFINE i INT
     DEFINE total DECIMAL(10,2)
     LET total = 0.00
     IF c<=0 OR c>bomlist.getLength() THEN RETURN END IF
@@ -616,10 +593,11 @@ FUNCTION bom_tree_parent_total(c)
     LET bomlist[c].price = total
 END FUNCTION
 
-FUNCTION bom_tree_quantity_add(d, c, v)
-    DEFINE d ui.Dialog
-    DEFINE c INT
-    DEFINE v DECIMAL(20,4)
+FUNCTION bom_tree_quantity_add(
+    d ui.Dialog,
+    c INT,
+    v DECIMAL(20,4)
+) RETURNS ()
     LET d = NULL
     UPDATE bomlink SET bomlink_quantity = bomlist[c].quantity + v
      WHERE bomlink_num = bomlist[c].linknum
@@ -628,9 +606,8 @@ FUNCTION bom_tree_quantity_add(d, c, v)
     CALL bom_tree_parent_total(bom_tree_root(c))
 END FUNCTION
 
-FUNCTION bom_tree_expcolall(d, c, v)
-    DEFINE d ui.Dialog
-    DEFINE c, v, i INT
+FUNCTION bom_tree_expcolall(d ui.Dialog, c INT, v INT) RETURNS ()
+    DEFINE i INT
     LET d = NULL
     FOR i=c TO bomlist.getLength()
         IF i!=c AND bomlist[i].pid == bomlist[c].pid THEN EXIT FOR END IF
@@ -638,7 +615,7 @@ FUNCTION bom_tree_expcolall(d, c, v)
     END FOR
 END FUNCTION
 
-FUNCTION bom_sync_expanded()
+FUNCTION bom_sync_expanded() RETURNS ()
     DEFINE i, x INT
     BEGIN WORK
     FOR i=1 TO bomlist.getLength()
@@ -649,7 +626,7 @@ FUNCTION bom_sync_expanded()
     COMMIT WORK
 END FUNCTION
 
-FUNCTION bom_build()
+FUNCTION bom_build() RETURNS ()
     DEFINE x INT
 
     DIALOG ATTRIBUTES(UNBUFFERED)
@@ -668,22 +645,22 @@ FUNCTION bom_build()
                CALL bom_dialog_setup(DIALOG)
         END DISPLAY
 
-        INPUT BY NAME options.part_filter, options.follow_tree
+        INPUT BY NAME opts.part_filter, opts.follow_tree
               ATTRIBUTES(WITHOUT DEFAULTS)
            ON CHANGE follow_tree
               CALL bom_dialog_setup(DIALOG)
            ON CHANGE part_filter
-              CALL bom_fill_parts(options.part_filter)
+              CALL bom_fill_parts(opts.part_filter)
               CALL DIALOG.setCurrentRow("mlsr",1)
               CALL bom_dialog_setup(DIALOG)
         END INPUT
 
         BEFORE DIALOG
-           CALL DIALOG.setCurrentRow("tvsr", options.last_row)
+           CALL DIALOG.setCurrentRow("tvsr", opts.last_row)
            CALL DIALOG.setArrayAttributes("tvsr", bomlist_colors)
            CALL bom_dialog_setup(DIALOG) -- When no rows in tree.
         AFTER DIALOG
-           LET options.last_row = DIALOG.getCurrentRow("tvsr")
+           LET opts.last_row = DIALOG.getCurrentRow("tvsr")
 
         ON ACTION tree_delete
            CALL bom_tree_delete(DIALOG)
@@ -725,7 +702,7 @@ FUNCTION bom_build()
            IF x > 0 THEN
               CALL DIALOG.setCurrentRow("mlsr", x)
            END IF
- 
+
         ON ACTION bom_debug ATTRIBUTES(DEFAULTVIEW=NO, ACCELERATOR="CONTROL-Z")
            CALL bom_debug()
 
@@ -736,8 +713,11 @@ FUNCTION bom_build()
 
 END FUNCTION
 
-FUNCTION add_constraint(tabname, conname, conbody)
-    DEFINE tabname, conname, conbody STRING
+FUNCTION add_constraint(
+    tabname STRING,
+    conname STRING,
+    conbody STRING
+) RETURNS BOOLEAN
     IF fgl_db_driver_type() == "sqt" THEN
        DISPLAY SFMT("%1/%2: No table constaints with SQLite...",tabname,conname)
        RETURN TRUE
@@ -751,14 +731,14 @@ FUNCTION add_constraint(tabname, conname, conbody)
     RETURN (sqlca.sqlcode == 0)
 END FUNCTION
 
-FUNCTION bomlink_new_id()
+FUNCTION bomlink_new_id() RETURNS INTEGER
     DEFINE n INTEGER
     SELECT MAX(bomlink_num)+1 INTO n FROM bomlink
     IF n IS NULL THEN LET n = 1 END IF
     RETURN n
 END FUNCTION
 
-FUNCTION create_tables()
+FUNCTION create_tables() RETURNS ()
     DEFINE s BOOLEAN
 
     DISPLAY "Creating tables..."
@@ -919,32 +899,39 @@ FUNCTION create_tables()
 
 END FUNCTION
 
-FUNCTION __mbox_ok(title,message,icon)
-  DEFINE title, message, icon STRING
-  MENU title ATTRIBUTES(STYLE='dialog',IMAGE=icon,COMMENT=message)
-     COMMAND "OK"
-  END MENU
+FUNCTION __mbox_ok(
+    tit STRING,
+    msg STRING,
+    img STRING
+) RETURNS ()
+    MENU tit ATTRIBUTES(STYLE='dialog',IMAGE=img,COMMENT=msg)
+       COMMAND "OK"
+    END MENU
 END FUNCTION
 
-FUNCTION __mbox_yn(title,message,icon)
-  DEFINE title, message, icon STRING
-  DEFINE r SMALLINT
-  MENU title ATTRIBUTES(STYLE='dialog',IMAGE=icon,COMMENT=message)
-     COMMAND "Yes" LET r=TRUE
-     COMMAND "No"  LET r=FALSE
-  END MENU
-  RETURN r
+FUNCTION __mbox_yn(
+    tit STRING,
+    msg STRING,
+    img STRING
+) RETURNS BOOLEAN
+    DEFINE r BOOLEAN
+    MENU tit ATTRIBUTES(STYLE='dialog',IMAGE=img,COMMENT=msg)
+       COMMAND "Yes" LET r=TRUE
+       COMMAND "No"  LET r=FALSE
+    END MENU
+    RETURN r
 END FUNCTION
 
-FUNCTION __mbox_ync(title,message,icon)
-  DEFINE title, message, icon STRING
-  DEFINE r CHAR
-  MENU title ATTRIBUTES(STYLE='dialog',IMAGE=icon,COMMENT=message)
-     COMMAND "Yes"     LET r="y"
-     COMMAND "No"      LET r="n"
-     COMMAND "Cancel"  LET r="c"
-  END MENU             
-  RETURN r
+FUNCTION __mbox_ync(
+    tit STRING,
+    msg STRING,
+    img STRING
+) RETURNS CHAR(1)
+    DEFINE r CHAR(1)
+    MENU tit ATTRIBUTES(STYLE='dialog',IMAGE=img,COMMENT=msg)
+       COMMAND "Yes"     LET r="y"
+       COMMAND "No"      LET r="n"
+       COMMAND "Cancel"  LET r="c"
+    END MENU
+    RETURN r
 END FUNCTION
-
-
